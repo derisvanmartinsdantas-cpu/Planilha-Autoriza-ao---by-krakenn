@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Escala Semanal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF8;
+            color: #3D405B;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 400px;
+            max-height: 50vh;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #829994;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b807c;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto p-4 sm:p-6 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-[#3D405B]">Painel de Escala Semanal</h1>
+            <p class="text-md text-gray-600 mt-2">Visualize, filtre e edite a escala da equipe de forma interativa.</p>
+        </header>
+
+        <main>
+            <div class="bg-white rounded-xl shadow-md p-6 mb-8 border border-gray-200">
+                <div class="flex flex-wrap gap-4 items-center justify-center md:justify-start">
+                    <div class="flex-grow md:flex-grow-0">
+                        <label for="day-filter" class="block text-sm font-medium text-gray-700 mb-1">Filtrar por Dia:</label>
+                        <select id="day-filter" class="w-full md:w-48 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#829994] focus:border-[#829994] block p-2.5">
+                            <option value="todos">Todos os dias</option>
+                        </select>
+                    </div>
+                    <div class="flex-grow md:flex-grow-0">
+                        <label for="staff-filter" class="block text-sm font-medium text-gray-700 mb-1">Filtrar por Staff:</label>
+                        <select id="staff-filter" class="w-full md:w-48 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#829994] focus:border-[#829994] block p-2.5">
+                            <option value="todos">Todos os staff</option>
+                        </select>
+                    </div>
+                    <div class="flex-grow md:flex-grow-0 self-end">
+                       <button id="clear-filters" class="w-full md:w-auto bg-[#3D405B] text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-opacity-90 transition-colors">Limpar Filtros</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                <div class="lg:col-span-3 bg-white rounded-xl shadow-md p-4 sm:p-6 border border-gray-200">
+                    <h2 class="text-xl font-bold mb-4 text-center">Tabela de Horários</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Dia</th>
+                                    <th scope="col" class="px-6 py-3">Horário</th>
+                                    <th scope="col" class="px-6 py-3">Staff</th>
+                                    <th scope="col" class="px-6 py-3">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="schedule-table-body">
+                            </tbody>
+                        </table>
+                        <p id="no-results" class="text-center py-8 text-gray-500 hidden">Nenhum resultado encontrado para os filtros selecionados.</p>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 flex flex-col gap-8">
+                    <div class="bg-white rounded-xl shadow-md p-4 sm:p-6 border border-gray-200">
+                        <h2 class="text-xl font-bold mb-4 text-center">Gerenciar Nomes da Equipe</h2>
+                        <ul id="staff-list" class="space-y-2 max-h-48 overflow-y-auto">
+                        </ul>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-md p-4 sm:p-6 border border-gray-200">
+                        <h2 class="text-xl font-bold mb-4 text-center">Adicionar Novo Staff</h2>
+                        <input type="text" id="new-staff-to-add" placeholder="Nome do novo funcionário" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#829994] focus:border-[#829994] p-2.5 mb-3">
+                        <button id="add-new-staff-btn" class="w-full bg-[#3D405B] text-white font-semibold py-2.5 rounded-lg hover:bg-opacity-90 transition-colors">Adicionar Staff</button>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-md p-4 sm:p-6 border border-gray-200 flex-grow flex flex-col">
+                        <h2 class="text-xl font-bold mb-4 text-center">Distribuição de Turnos por Staff</h2>
+                        <div class="chart-container flex-grow">
+                            <canvas id="staff-chart"></canvas>
+                        </div>
+                        <p id="chart-no-data" class="text-center py-8 text-gray-500 hidden">Não há dados para exibir no gráfico.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Modal Editar Nome Staff -->
+        <div id="edit-name-modal" class="modal">
+            <div class="modal-content">
+                <h3 class="text-xl font-semibold mb-4">Editar Nome do Staff</h3>
+                <label for="new-staff-name" class="block text-sm font-medium text-gray-700 mb-2">Novo Nome:</label>
+                <input type="text" id="new-staff-name" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#829994] focus:border-[#829994] p-2.5 mb-4">
+                <div class="flex justify-end gap-2">
+                    <button id="cancel-name-edit" class="bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors">Cancelar</button>
+                    <button id="save-name-edit" class="bg-[#829994] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#6b807c] transition-colors">Salvar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Editar Turno -->
+        <div id="edit-shift-modal" class="modal">
+            <div class="modal-content">
+                <h3 class="text-xl font-semibold mb-4">Editar Turno</h3>
+                
+                <div class="mb-4">
+                    <label for="edit-day" class="block text-sm font-medium text-gray-700 mb-2">Dia:</label>
+                    <select id="edit-day" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#829994] focus:border-[#829994] p-2.5">
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label for="edit-time" class="block text-sm font-medium text-gray-700 mb-2">Horário:</label>
+                    <select id="edit-time" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#829994] focus:border-[#829994] p-2.5">
+                        <option value="07:00 às 15:29">07:00 às 15:29</option>
+                        <option value="15:30 às 23:59">15:30 às 23:59</option>
+                    </select>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="edit-staff" class="block text-sm font-medium text-gray-700 mb-2">Staff:</label>
+                    <select id="edit-staff" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#829994] focus:border-[#829994] p-2.5">
+                    </select>
+                </div>
+
+                <div class="flex justify-end gap-2 mt-4">
+                    <button id="cancel-shift-edit" class="bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors">Cancelar</button>
+                    <button id="save-shift-edit" class="bg-[#829994] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#6b807c] transition-colors">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let scheduleData = [
+                { dia: 'Domingo', horario: '07:00 às 15:29', staff: 'Kraken' },
+                { dia: 'Domingo', horario: '15:30 às 23:59', staff: 'Kraken' },
+                { dia: 'Segunda', horario: '07:00 às 15:29', staff: 'Kraken' },
+                { dia: 'Segunda', horario: '15:30 às 23:59', staff: 'Zebra' },
+                { dia: 'Terça', horario: '07:00 às 15:29', staff: 'Kraken' },
+                { dia: 'Terça', horario: '15:30 às 23:59', staff: 'Kraken' },
+                { dia: 'Quarta', horario: '07:00 às 15:29', staff: 'Kraken' },
+                { dia: 'Quarta', horario: '15:30 às 23:59', staff: 'Kraken' },
+                { dia: 'Quinta', horario: '07:00 às 15:29', staff: 'Kraken' },
+                { dia: 'Quinta', horario: '15:30 às 23:59', staff: 'Kraken' },
+                { dia: 'Sexta', horario: '07:00 às 15:29', staff: 'Coelho' },
+                { dia: 'Sexta', horario: '15:30 às 23:59', staff: 'Abelha' },
+                { dia: 'Sábado', horario: '07:00 às 15:29', staff: 'Kraken' },
+                { dia: 'Sábado', horario: '15:30 às 23:59', staff: 'Toupeira' },
+            ];
+            let currentStaffToEdit = null;
+            let currentShiftToEdit = null;
+
+            // DOM elements
+            const dayFilter = document.getElementById('day-filter');
+            const staffFilter = document.getElementById('staff-filter');
+            const clearButton = document.getElementById('clear-filters');
+            const tableBody = document.getElementById('schedule-table-body');
+            const noResultsMessage = document.getElementById('no-results');
+            const chartNoDataMessage = document.getElementById('chart-no-data');
+            const chartContainer = document.querySelector('.chart-container');
+            const staffListEl = document.getElementById('staff-list');
+            const editNameModal = document.getElementById('edit-name-modal');
+            const newStaffNameInput = document.getElementById('new-staff-name');
+            const saveNameEditBtn = document.getElementById('save-name-edit');
+            const cancelNameEditBtn = document.getElementById('cancel-name-edit');
+            const editShiftModal = document.getElementById('edit-shift-modal');
+            const editDaySelect = document.getElementById('edit-day');
+            const editTimeSelect = document.getElementById('edit-time');
+            const editStaffSelect = document.getElementById('edit-staff');
+            const saveShiftEditBtn = document.getElementById('save-shift-edit');
+            const cancelShiftEditBtn = document.getElementById('cancel-shift-edit');
+            const addNewStaffBtn = document.getElementById('add-new-staff-btn');
+            const newStaffToAddInput = document.getElementById('new-staff-to-add');
+
+            let staffChart;
+
+            // Populate filter options
+            function populateFilters() {
+                const days = [...new Set(scheduleData.map(item => item.dia))];
+                const staff = [...new Set(scheduleData.map(item => item.staff))];
+
+                dayFilter.innerHTML = '<option value="todos">Todos os dias</option>';
+                staffFilter.innerHTML = '<option value="todos">Todos os staff</option>';
+
+                days.forEach(day => {
+                    const option = document.createElement('option');
+                    option.value = day;
+                    option.textContent = day;
+                    dayFilter.appendChild(option);
+                });
+
+                staff.forEach(person => {
+                    const option = document.createElement('option');
+                    option.value = person;
+                    option.textContent = person;
+                    staffFilter.appendChild(option);
+                });
+            }
+
+            // Render schedule table
+            function renderTable(data) {
+                tableBody.innerHTML = '';
+                if (data.length === 0) {
+                    noResultsMessage.classList.remove('hidden');
+                    tableBody.classList.add('hidden');
+                } else {
+                    noResultsMessage.classList.add('hidden');
+                    tableBody.classList.remove('hidden');
+                    data.forEach((item, idx) => {
+                        const row = document.createElement('tr');
+                        row.className = 'bg-white border-b hover:bg-gray-50';
+                        row.innerHTML = `
+                            <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${item.dia}</td>
+                            <td class="px-6 py-4">${item.horario}</td>
+                            <td class="px-6 py-4">${item.staff}</td>
+                            <td class="px-6 py-4 flex flex-col gap-2 md:flex-row">
+                                <button class="edit-staff-btn-table bg-[#3D405B] text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-90 transition-colors mb-1" data-staff-name="${item.staff}">Editar Staff</button>
+                                <button class="edit-shift-btn bg-[#829994] text-white font-semibold py-1.5 px-3 rounded-md hover:bg-[#6b807c] transition-colors" data-idx="${scheduleData.indexOf(item)}">Editar Turno</button>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+
+                    // Table edit staff buttons
+                    document.querySelectorAll('.edit-staff-btn-table').forEach(button => {
+                        button.addEventListener('click', (e) => {
+                            const staffName = e.target.dataset.staffName;
+                            showEditNameModal(staffName);
+                        });
+                    });
+
+                    // Table edit shift buttons
+                    document.querySelectorAll('.edit-shift-btn').forEach(button => {
+                        button.addEventListener('click', (e) => {
+                            const idx = parseInt(e.target.dataset.idx, 10);
+                            showEditShiftModal(idx);
+                        });
+                    });
+                }
+            }
+
+            // Update Chart.js chart
+            function updateChart(data) {
+                const staffCounts = data.reduce((acc, item) => {
+                    acc[item.staff] = (acc[item.staff] || 0) + 1;
+                    return acc;
+                }, {});
+                
+                const sortedStaff = Object.keys(staffCounts).sort((a, b) => staffCounts[b] - staffCounts[a]);
+                const sortedCounts = sortedStaff.map(staff => staffCounts[staff]);
+
+                const hasData = sortedStaff.length > 0;
+                chartContainer.style.display = hasData ? 'block' : 'none';
+                chartNoDataMessage.style.display = hasData ? 'none' : 'block';
+
+                if (staffChart) {
+                    staffChart.data.labels = sortedStaff;
+                    staffChart.data.datasets[0].data = sortedCounts;
+                    staffChart.update();
+                } else if (hasData) {
+                    const ctx = document.getElementById('staff-chart').getContext('2d');
+                    staffChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: sortedStaff,
+                            datasets: [{
+                                label: 'Nº de Turnos',
+                                data: sortedCounts,
+                                backgroundColor: '#829994',
+                                borderColor: '#6b807c',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                title: {
+                                    display: false
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Apply current filters
+            function applyFilters() {
+                const selectedDay = dayFilter.value;
+                const selectedStaff = staffFilter.value;
+
+                let filteredData = scheduleData;
+
+                if (selectedDay !== 'todos') {
+                    filteredData = filteredData.filter(item => item.dia === selectedDay);
+                }
+
+                if (selectedStaff !== 'todos') {
+                    filteredData = filteredData.filter(item => item.staff === selectedStaff);
+                }
+
+                renderTable(filteredData);
+                updateChart(filteredData);
+            }
+
+            // Clear filters
+            function clearFilters() {
+                dayFilter.value = 'todos';
+                staffFilter.value = 'todos';
+                applyFilters();
+            }
+
+            // Render staff list
+            function displayStaffList() {
+                const uniqueStaff = [...new Set(scheduleData.map(item => item.staff))].sort();
+                staffListEl.innerHTML = '';
+                uniqueStaff.forEach(staff => {
+                    const li = document.createElement('li');
+                    li.className = 'flex items-center justify-between bg-gray-50 rounded-lg p-3';
+                    li.innerHTML = `
+                        <span class="font-medium text-gray-700">${staff}</span>
+                        <button class="edit-staff-btn bg-[#3D405B] text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-90 transition-colors" data-staff-name="${staff}">Editar</button>
+                    `;
+                    staffListEl.appendChild(li);
+                });
+
+                document.querySelectorAll('.edit-staff-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const staffName = e.target.dataset.staffName;
+                        showEditNameModal(staffName);
+                    });
+                });
+            }
+
+            // Modal - Editar Nome Staff
+            function showEditNameModal(staffName) {
+                currentStaffToEdit = staffName;
+                newStaffNameInput.value = staffName;
+                editNameModal.style.display = 'flex';
+                newStaffNameInput.focus();
+            }
+            function hideEditNameModal() {
+                editNameModal.style.display = 'none';
+                currentStaffToEdit = null;
+                newStaffNameInput.value = '';
+            }
+            function saveEditedName() {
+                const newName = newStaffNameInput.value.trim();
+                if (newName === "" || newName === currentStaffToEdit) {
+                    hideEditNameModal();
+                    return;
+                }
+                scheduleData = scheduleData.map(item => {
+                    if (item.staff === currentStaffToEdit) {
+                        return { ...item, staff: newName };
+                    }
+                    return item;
+                });
+                hideEditNameModal();
+                populateFilters();
+                displayStaffList();
+                applyFilters();
+            }
+
+            // Modal - Editar Turno
+            function showEditShiftModal(idx) {
+                currentShiftToEdit = idx;
+                // Populate days
+                const days = [...new Set(scheduleData.map(item => item.dia))];
+                editDaySelect.innerHTML = '';
+                days.forEach(day => {
+                    const option = document.createElement('option');
+                    option.value = day;
+                    option.textContent = day;
+                    editDaySelect.appendChild(option);
+                });
+                // Populate staff
+                const staff = [...new Set(scheduleData.map(item => item.staff))];
+                editStaffSelect.innerHTML = '';
+                staff.forEach(person => {
+                    const option = document.createElement('option');
+                    option.value = person;
+                    option.textContent = person;
+                    editStaffSelect.appendChild(option);
+                });
+                // Set current values
+                const current = scheduleData[idx];
+                editDaySelect.value = current.dia;
+                editTimeSelect.value = current.horario;
+                editStaffSelect.value = current.staff;
+                editShiftModal.style.display = 'flex';
+            }
+            function hideEditShiftModal() {
+                editShiftModal.style.display = 'none';
+                currentShiftToEdit = null;
+            }
+            function saveEditedShift() {
+                if (currentShiftToEdit === null) return;
+                scheduleData[currentShiftToEdit] = {
+                    dia: editDaySelect.value,
+                    horario: editTimeSelect.value,
+                    staff: editStaffSelect.value
+                };
+                hideEditShiftModal();
+                populateFilters();
+                displayStaffList();
+                applyFilters();
+            }
+
+            // Add new staff
+            function addNewStaff() {
+                const newName = newStaffToAddInput.value.trim();
+                if (!newName) return;
+                // Only add if the name doesn't already exist
+                const exists = scheduleData.some(item => item.staff.toLowerCase() === newName.toLowerCase());
+                if (!exists) {
+                    // Add a dummy shift for this new staff on Domingo
+                    scheduleData.push({ dia: 'Domingo', horario: '07:00 às 15:29', staff: newName });
+                    populateFilters();
+                    displayStaffList();
+                    applyFilters();
+                    newStaffToAddInput.value = '';
+                }
+            }
+
+            // Event listeners
+            dayFilter.addEventListener('change', applyFilters);
+            staffFilter.addEventListener('change', applyFilters);
+            clearButton.addEventListener('click', clearFilters);
+            saveNameEditBtn.addEventListener('click', saveEditedName);
+            cancelNameEditBtn.addEventListener('click', hideEditNameModal);
+            saveShiftEditBtn.addEventListener('click', saveEditedShift);
+            cancelShiftEditBtn.addEventListener('click', hideEditShiftModal);
+            addNewStaffBtn.addEventListener('click', addNewStaff);
+            window.addEventListener('click', (e) => {
+                if (e.target === editNameModal) hideEditNameModal();
+                if (e.target === editShiftModal) hideEditShiftModal();
+            });
+
+            // Initial render
+            populateFilters();
+            displayStaffList();
+            applyFilters();
+        });
+    </script>
+</body>
+</html>
